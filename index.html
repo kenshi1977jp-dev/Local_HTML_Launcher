@@ -845,7 +845,7 @@
       fab.classList.add('fab-awake');
       setTimeout(() => fab.classList.remove('fab-awake'), 2000);
 
-      // Androidの戻るジェスチャーでランチャー画面へ戻れるようにする
+      // Androidの戻るジェスチャーでアプリが閉じないよう、履歴を1つ積んで吸収する
       if (!runnerOpen) {
         try { history.pushState({ runner: true }, ''); } catch (e) {}
       }
@@ -1206,10 +1206,17 @@
     document.getElementById('btn-cancel-modal').addEventListener('click', closeAddModal);
 
     document.getElementById('btn-close-app').addEventListener('click', () => {
-      if (history.state && history.state.runner) history.back(); // popstate経由で閉じる
-      else closeAppRunner();
+      // 左上の「戻る」ボタンだけで閉じる（スワイプ/戻るジェスチャーでは閉じない）
+      const hadEntry = !!(history.state && history.state.runner);
+      closeAppRunner();
+      if (hadEntry) { try { history.back(); } catch (e) {} } // 積んだ履歴を消費（runnerOpen=falseなのでpopstateは無視される）
     });
-    window.addEventListener('popstate', () => { if (runnerOpen) closeAppRunner(); });
+    // 戻るジェスチャー/戻るキーは無視して、アプリ画面に留まる
+    window.addEventListener('popstate', () => {
+      if (runnerOpen) {
+        try { history.pushState({ runner: true }, ''); } catch (e) {}
+      }
+    });
     document.getElementById('btn-reload-app').addEventListener('click', reloadAppRunner);
     document.getElementById('btn-open-external').addEventListener('click', () => {
       if (currentRunningApp && currentRunningApp.url) window.open(currentRunningApp.url, '_blank', 'noopener');
