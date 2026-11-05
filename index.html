@@ -764,6 +764,7 @@
        =================================================================== */
     let currentRunningApp = null;
     let runnerOpen = false;
+    const BACK_GUARD = 5; // アプリ表示中に積む履歴の数（戻るジェスチャー吸収用）
 
     /* ===================================================================
        AUDIO: iPhoneで音が出るまで約1秒かかる問題への対策。
@@ -847,7 +848,8 @@
 
       // Androidの戻るジェスチャーでアプリが閉じないよう、履歴を1つ積んで吸収する
       if (!runnerOpen) {
-        try { history.pushState({ runner: true }, ''); } catch (e) {}
+        // 連続スワイプでも抜けないよう、履歴を複数積んでおく
+        try { for (let i = 1; i <= BACK_GUARD; i++) history.pushState({ runner: true, i }, ''); } catch (e) {}
       }
       runnerOpen = true;
 
@@ -1207,15 +1209,16 @@
 
     document.getElementById('btn-close-app').addEventListener('click', () => {
       // 左上の「戻る」ボタンだけで閉じる（スワイプ/戻るジェスチャーでは閉じない）
-      const hadEntry = !!(history.state && history.state.runner);
+      const n = (history.state && history.state.runner && history.state.i) || 0;
       closeAppRunner();
-      if (hadEntry) { try { history.back(); } catch (e) {} } // 積んだ履歴を消費（runnerOpen=falseなのでpopstateは無視される）
+      if (n > 0) { try { history.go(-n); } catch (e) {} } // 積んだ履歴をまとめて戻す（runnerOpen=falseなのでpopstateは無視される）
     });
     // 戻るジェスチャー/戻るキーは無視して、アプリ画面に留まる
     window.addEventListener('popstate', () => {
-      if (runnerOpen) {
-        try { history.pushState({ runner: true }, ''); } catch (e) {}
-      }
+      if (!runnerOpen) return;
+      const st = history.state;
+      const cur = (st && st.runner && st.i) || 0;
+      try { for (let i = cur + 1; i <= BACK_GUARD; i++) history.pushState({ runner: true, i }, ''); } catch (e) {}
     });
     document.getElementById('btn-reload-app').addEventListener('click', reloadAppRunner);
     document.getElementById('btn-open-external').addEventListener('click', () => {
