@@ -902,6 +902,8 @@
       setTimeout(() => {
         container.innerHTML = ''; // Release memory
         currentRunningApp = null;
+        // iPhone: マイク使用後に音量が小さいままになるのを防ぐため、音声セッションを既定に戻す
+        try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch (e) {}
       }, 1500); // 音声認識が終了処理を終えるまで画面(iframe)を残す
     }
 
@@ -1808,6 +1810,4 @@
       renderAppGrid();
       loadCustomApps().then(() => { renderAppGrid(); syncInit(); });
     });
-  </script>
-</body>
-</html>
+  </scr
