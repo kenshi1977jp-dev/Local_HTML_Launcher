@@ -815,6 +815,15 @@
       return code.slice(0, i) + AUDIO_SHIM + code.slice(i);
     }
 
+    // アプリを閉じる/開き直す前に、アプリ側へ「マイク等を止めて」と伝える（音声認識の取り残し防止）
+    function stopAppIframe() {
+      try {
+        const f = document.querySelector('#runner-container iframe');
+        const w = f && f.contentWindow;
+        if (w && typeof w.__appStop === 'function') w.__appStop();
+      } catch (e) {}
+    }
+
     function launchApp(app) {
       const isUrl = app.type === 'url';
       if (isUrl) {
@@ -854,6 +863,7 @@
       runnerOpen = true;
 
       // Clean container
+      stopAppIframe();
       container.innerHTML = '';
 
       // Create an iframe to isolate the custom app HTML context safely
@@ -877,6 +887,7 @@
     function closeAppRunner() {
       if (!runnerOpen) return;
       runnerOpen = false;
+      stopAppIframe();
       closeSharedAudio(); // 鳴りっぱなしの音が残らないように停止
       const runner = document.getElementById('screen-runner');
       const container = document.getElementById('runner-container');
