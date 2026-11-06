@@ -900,7 +900,7 @@
       setTimeout(() => {
         container.innerHTML = ''; // Release memory
         currentRunningApp = null;
-      }, 250);
+      }, 1500); // 音声認識が終了処理を終えるまで画面(iframe)を残す
     }
 
     function reloadAppRunner() {
