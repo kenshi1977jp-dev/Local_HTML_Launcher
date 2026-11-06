@@ -838,8 +838,10 @@
         }
         closeSharedAudio();
       } else {
-        // タップ(ユーザー操作)の中で音の出力系統を先に起動しておく
-        prepareSharedAudio();
+        // 音声認識(マイク)を使うアプリでは、共有AudioContextを使わない（マイクと同時に動かすと端末の音量・マイクが不調になるため）
+        if (/SpeechRecognition/.test(app.code || '')) closeSharedAudio();
+        // それ以外は、タップ(ユーザー操作)の中で音の出力系統を先に起動しておく
+        else prepareSharedAudio();
       }
       currentRunningApp = app;
       const runner = document.getElementById('screen-runner');
