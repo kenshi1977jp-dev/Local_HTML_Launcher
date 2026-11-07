@@ -910,10 +910,26 @@
       runner.classList.add('translate-x-0', 'opacity-100');
     }
 
+    // iPhone: マイク使用後に音量が小さいままになるのを防ぐため、音声セッションを一度「再生のみ」にしてから既定に戻す
+    function resetAudioSession() {
+      try {
+        const as = navigator.audioSession;
+        if (!as) return;
+        as.type = 'playback';
+        setTimeout(() => {
+          try {
+            const usingMic = runnerOpen && currentRunningApp && /SpeechRecognition/.test(currentRunningApp.code || '');
+            if (!usingMic) as.type = 'auto';
+          } catch (e) {}
+        }, 2000);
+      } catch (e) {}
+    }
+
     function closeAppRunner() {
       if (!runnerOpen) return;
       runnerOpen = false;
       stopAppIframe();
+      setTimeout(resetAudioSession, 300);
       closeSharedAudio(); // 鳴りっぱなしの音が残らないように停止
       const runner = document.getElementById('screen-runner');
       const container = document.getElementById('runner-container');
@@ -924,10 +940,9 @@
       runner.classList.add('translate-x-full', 'opacity-0', 'pointer-events-none');
 
       setTimeout(() => {
+        if (runnerOpen) return; // 閉じた直後に別アプリを開いた場合は、その新しい画面を消さない
         container.innerHTML = ''; // Release memory
         currentRunningApp = null;
-        // iPhone: マイク使用後に音量が小さいままになるのを防ぐため、音声セッションを既定に戻す
-        try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch (e) {}
       }, 1500); // 音声認識が終了処理を終えるまで画面(iframe)を残す
     }
 
