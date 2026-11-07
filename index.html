@@ -774,6 +774,28 @@
     let sharedAudio = null;
     window.__launcherAudio = () => sharedAudio;
 
+    // 音声認識(SpeechRecognition)はランチャー側で作って管理する。
+    // アプリ画面(iframe)を消しても認識が取り残されないようにするため（iPhoneで2回目以降にマイクが効かなくなる対策）
+    const __srInstances = new Set();
+    (function () {
+      const SRC = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SRC) return;
+      const F = function () {
+        const r = new SRC();
+        __srInstances.add(r);
+        r.addEventListener('end', () => __srInstances.delete(r));
+        return r;
+      };
+      F.prototype = SRC.prototype;
+      window.__launcherSR = F;
+    })();
+    function abortAllSpeech() {
+      __srInstances.forEach(r => {
+        try { r.onend = null; r.onresult = null; r.onerror = null; r.abort(); } catch (e) {}
+      });
+      __srInstances.clear();
+    }
+
     function closeSharedAudio() {
       const ctx = sharedAudio;
       sharedAudio = null;
@@ -803,7 +825,8 @@
     }
 
     // アプリのHTML内で最初に実行されるスクリプト（失敗しても何もしない）
-    const AUDIO_SHIM = '<script>(function(){try{var c=window.parent&&window.parent.__launcherAudio&&window.parent.__launcherAudio();if(!c)return;var F=function(){return c;};F.prototype=Object.getPrototypeOf(c);window.AudioContext=F;window.webkitAudioContext=F;}catch(e){}})();<\/script>';
+    const SR_SHIM = '<script>(function(){try{var P=window.parent;if(!P||!P.__launcherSR)return;window.SpeechRecognition=P.__launcherSR;window.webkitSpeechRecognition=P.__launcherSR;}catch(e){}})();<\/script>';
+    const AUDIO_SHIM = SR_SHIM + '<script>(function(){try{var c=window.parent&&window.parent.__launcherAudio&&window.parent.__launcherAudio();if(!c)return;var F=function(){return c;};F.prototype=Object.getPrototypeOf(c);window.AudioContext=F;window.webkitAudioContext=F;}catch(e){}})();<\/script>';
 
     // DOCTYPEより前に書くと互換モードになるため、<head>(無ければ<html>、無ければDOCTYPE)の直後に挿入する
     function withAudioShim(code) {
@@ -822,6 +845,7 @@
         const w = f && f.contentWindow;
         if (w && typeof w.__appStop === 'function') w.__appStop();
       } catch (e) {}
+      abortAllSpeech();
     }
 
     function launchApp(app) {
