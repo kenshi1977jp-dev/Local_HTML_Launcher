@@ -819,14 +819,33 @@
         src.connect(ctx.destination);
         src.start(0);
         sharedAudio = ctx;
+        // 他アプリへの切替・画面オフなどで止められても、戻ったら自動で再開できるようにする
+        ctx.onstatechange = () => { if (sharedAudio === ctx && ctx.state !== 'running') wakeAudio(); };
+        [150, 500, 1200].forEach(ms => setTimeout(() => { if (sharedAudio === ctx) wakeAudio(); }, ms));
       } catch (e) {
         sharedAudio = null;
       }
     }
 
+    // 共有AudioContextが suspended / interrupted になっていたら再開する（何度呼んでもOK）
+    function wakeAudio() {
+      const c = sharedAudio;
+      if (!c || c.state === 'running' || c.state === 'closed') return;
+      try { const r = c.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+    }
+    window.__launcherWake = wakeAudio;
+    // ブラウザを別アプリに切り替えて戻ったとき・画面に触れたときに再開
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { wakeAudio(); [100, 400, 1000].forEach(ms => setTimeout(wakeAudio, ms)); }
+    });
+    window.addEventListener('pageshow', wakeAudio);
+    window.addEventListener('focus', wakeAudio);
+    ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown'].forEach(ev =>
+      document.addEventListener(ev, wakeAudio, { capture: true, passive: true }));
+
     // アプリのHTML内で最初に実行されるスクリプト（失敗しても何もしない）
     const SR_SHIM = '<script>(function(){try{var P=window.parent;if(!P||!P.__launcherSR)return;window.SpeechRecognition=P.__launcherSR;window.webkitSpeechRecognition=P.__launcherSR;}catch(e){}})();<\/script>';
-    const AUDIO_SHIM = SR_SHIM + '<script>(function(){try{var c=window.parent&&window.parent.__launcherAudio&&window.parent.__launcherAudio();if(!c)return;var F=function(){return c;};F.prototype=Object.getPrototypeOf(c);window.AudioContext=F;window.webkitAudioContext=F;}catch(e){}})();<\/script>';
+    const AUDIO_SHIM = SR_SHIM + '<script>(function(){try{var c=window.parent&&window.parent.__launcherAudio&&window.parent.__launcherAudio();if(!c)return;var F=function(){return c;};F.prototype=Object.getPrototypeOf(c);window.AudioContext=F;window.webkitAudioContext=F;var w=function(){try{window.parent.__launcherWake&&window.parent.__launcherWake();}catch(e){}};["pointerdown","touchstart","touchend","mousedown","click","keydown"].forEach(function(n){document.addEventListener(n,w,{capture:true,passive:true});});document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"){w();setTimeout(w,150);setTimeout(w,600);}});window.addEventListener("pageshow",w);window.addEventListener("focus",w);}catch(e){}})();<\/script>';
 
     // DOCTYPEより前に書くと互換モードになるため、<head>(無ければ<html>、無ければDOCTYPE)の直後に挿入する
     function withAudioShim(code) {
